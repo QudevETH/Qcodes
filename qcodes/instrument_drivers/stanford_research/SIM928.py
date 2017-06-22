@@ -51,7 +51,7 @@ class SIM928(VisaInstrument):
                                label="IDN of module {}".format(module_name),
                                get_cmd=partial(self.get_module_idn, i))
             self.add_parameter('volt_{}'.format(module_name), unit='V',
-                               label="Output voltage of module "
+                               label="Voltage of module "
                                      "{}".format(module_name),
                                vals=vals.Numbers(-20, 20),
                                get_cmd=partial(self.get_voltage, i),
@@ -62,6 +62,11 @@ class SIM928(VisaInstrument):
                                      "{}".format(module_name),
                                parameter_class=ManualParameter,
                                vals=vals.Numbers(0, 20), initial_value=0.005)
+            self.add_parameter('smooth_enabled_{}'.format(module_name),
+                               label="Module {} smooth stepping by "
+                                     "default".format(module_name),
+                               parameter_class=ManualParameter,
+                               vals=vals.Bool(), initial_value=True)
         self.add_parameter('smooth_timestep', unit='s',
                            label="Delay between sending the write commands"
                                  "when changing the voltage smoothly",
@@ -147,7 +152,7 @@ class SIM928(VisaInstrument):
             i = self.module_nr[i]
         self.write('SNDT {},"{}"'.format(i, cmd))
 
-    def set_voltage(self, i, voltage):
+    def set_voltage(self, i, voltage, immidiate=False):
         """
         Set the output voltage of a module.
 
@@ -161,7 +166,10 @@ class SIM928(VisaInstrument):
             i = self.module_nr[i]
         else:
             name = self.slot_names.get(i, i)
-        self.write_module(i, 'VOLT {:.3f}'.format(voltage))
+        if immidiate or not self.get('smooth_enabled_{}'.format(name)):
+            self.write_module(i, 'VOLT {:.3f}'.format(voltage))
+        else:
+            self.set_smooth({name: voltage})
         self.parameters['volt_{}'.format(name)]._save_val(voltage)
 
     def get_voltage(self, i):
@@ -245,7 +253,7 @@ class SIM928(VisaInstrument):
 
         for voltages in intermediate:
             for i in voltages:
-                self.set_voltage(i, voltages[i])
+                self.set_voltage(i, voltages[i], immidiate=True)
             time.sleep(self.smooth_timestep())
 
     def get_module_status(self, i):
