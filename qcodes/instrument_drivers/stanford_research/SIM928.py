@@ -185,7 +185,13 @@ class SIM928(VisaInstrument):
         """
         if not isinstance(i, int):
             i = self.module_nr[i]
-        return float(self.ask_module(i, 'VOLT?'))
+        voltage = float(self.ask_module(i, 'VOLT?'))
+        # check the message available bit of the mainframe status byte
+        # and empty the buffer
+        while self.byte_to_bits(int(self.get_mainframe_status()))[4]:
+            line = self.visa_handle.read()
+            log.warning('SIM900 buffer has anomalous content: {}'.format(line))
+        return voltage
 
     def set_smooth(self, voltagedict, equitime=False):
         """
@@ -380,6 +386,10 @@ class SIM928(VisaInstrument):
             if len(errors) != 0:
                 raise Exception(' '.join(errors + warnings))
         return errors + warnings
+
+    def get_mainframe_status(self):
+        status_byte = self.ask('*STB?')
+        return status_byte
 
     @staticmethod
     def byte_to_bits(x):
