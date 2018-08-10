@@ -1,5 +1,6 @@
 import io
 import numpy as np
+import re
 import pytest
 from hypothesis import given, settings
 from hypothesis.strategies import floats
@@ -8,7 +9,7 @@ import logging
 from typing import List, Dict
 
 import qcodes.instrument.sims as sims
-from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430_3D
+from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430_3D, AMI430Warning
 from qcodes.instrument.ip_to_visa import AMI430_VISA
 from qcodes.math.field_vector import FieldVector
 
@@ -263,19 +264,18 @@ def test_measured(current_driver, set_target):
                                      cartesian_z])
 
 
-def get_time_dict(messages: List[str]) -> Dict[float, str]:
-    """
-    Helper function used in test_ramp_down_first
-    """
-    relevant_messages = [line for line in messages
-                         if 'CONF:FIELD:TARG' in line]
-    time_dict = {}
-    for rm in relevant_messages:
-        time = rm.split(' - ')[0]
-        name = rm[rm.find(':')-1: rm.find(':')]
-        time_dict.update({name: float(time)})
+def get_ramp_down_order(messages: List[str]) -> List[str]:
+    order = []
 
-    return time_dict
+    for msg in messages:
+        if "CONF:FIELD:TARG" not in msg:
+            continue
+
+        g = re.search("(.): CONF:FIELD:TARG", msg)
+        name = g.groups()[0]
+        order.append(name)
+
+    return order
 
 
 def test_ramp_down_first(current_driver):
@@ -307,12 +307,10 @@ def test_ramp_down_first(current_driver):
         current_driver.cartesian(set_point)
         # get the logging outputs from the instruments.
         messages = get_messages(iostream)
-        # extract the time stamps
-        times = get_time_dict(messages)
-
-        for ramp_up_name in np.delete(names, count):
-            # ramp down occurs before ramp up.
-            assert times[ramp_down_name] < times[ramp_up_name]
+        # get the order in which the ramps down occur
+        order = get_ramp_down_order(messages)
+        # the first one should be the one for which delta < 0
+        assert order[0] == names[count]
 
 
 def test_field_limit_exception(current_driver):
@@ -341,6 +339,9 @@ def test_field_limit_exception(current_driver):
                 current_driver.cartesian(set_point)
 
             assert "field would exceed limit" in excinfo.value.args[0]
+            assert not all([a == b for a, b in zip(
+                current_driver.cartesian(), set_point
+            )])
 
 
 def test_cylindrical_poles(current_driver):
@@ -385,17 +386,16 @@ def test_warning_increased_max_ramp_rate():
     ramp rate. We want the user to be really sure what he or she is
     doing, as this could risk quenching the magnet
     """
-    max_ramp_rate = AMI430_VISA.default_current_ramp_limit
+    max_ramp_rate = AMI430_VISA._DEFAULT_CURRENT_RAMP_LIMIT
     # Increasing the maximum ramp rate should raise a warning
     target_ramp_rate = max_ramp_rate + 0.01
 
-    with pytest.raises(Warning) as excinfo:
+    with pytest.warns(AMI430Warning, match="Increasing maximum ramp rate") as excinfo:
         AMI430_VISA("testing_increased_max_ramp_rate",
                     address='GPIB::4::65535::INSTR', visalib=visalib,
                     terminator='\n', port=1,
                     current_ramp_limit=target_ramp_rate)
-
-    assert "Increasing maximum ramp rate" in excinfo.value.args[0]
+        assert len(excinfo) >= 1 # Check we at least one warning.
 
 
 def test_ramp_rate_exception(current_driver):
@@ -403,13 +403,14 @@ def test_ramp_rate_exception(current_driver):
     Test that an exception is raised if we try to set the ramp rate
     to a higher value than is allowed
     """
-    max_ramp_rate = AMI430_VISA.default_current_ramp_limit
+    max_ramp_rate = AMI430_VISA._DEFAULT_CURRENT_RAMP_LIMIT
     target_ramp_rate = max_ramp_rate + 0.01
     ix = current_driver._instrument_x
 
     with pytest.raises(Exception) as excinfo:
         ix.ramp_rate(target_ramp_rate)
 
-    errmsg = "must be between 0 and {} inclusive".format(max_ramp_rate)
+        errmsg = "must be between 0 and {} inclusive".format(max_ramp_rate)
 
-    assert errmsg in excinfo.value.args[0]
+        assert errmsg in excinfo.value.args[0]
+
