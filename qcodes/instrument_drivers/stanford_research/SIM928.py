@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import time
 
+import qcodes as qc
 from qcodes.instrument.visa import VisaInstrument
 from qcodes.utils import validators as vals
 
@@ -64,7 +65,7 @@ class SIM928(VisaInstrument):
             self.add_parameter('smooth_enabled_{}'.format(module_name),
                                label="Module {} smooth stepping by "
                                      "default".format(module_name),
-                               parameter_class=ManualParameter,
+                               parameter_class=qc.ManualParameter,
                                vals=vals.Bool(), initial_value=True)
         self.add_parameter('smooth_timestep', unit='s',
                            label="Delay between sending the write commands"
