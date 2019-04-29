@@ -15,6 +15,16 @@ from qcodes.utils.deprecate import deprecate
 from pyvisa.errors import VisaIOError
 
 
+import base64
+import hashlib
+def hash_str(s, chars):
+    x = base64.urlsafe_b64encode(hashlib.sha1(
+        s.encode('ascii')).digest()).decode()[:chars]
+    xnew = []
+    for c in x:
+        xnew.append(chr((ord(c) - ord('A'))%26 + ord('A')))
+    return ''.join(xnew)
+
 log = logging.getLogger(__name__)
 
 
@@ -1122,8 +1132,8 @@ class Tektronix_AWG5014(VisaInstrument):
             lenwfdat = len(wfdat)
 
             wf_record_str.write(
-                self._pack_record('WAVEFORM_NAME_{}'.format(ii), wf + '\x00',
-                                  '{}s'.format(len(wf + '\x00'))) +
+                self._pack_record('WAVEFORM_NAME_{}'.format(ii), hash_str(wf, 23) + '\x00',
+                                  '{}s'.format(len(hash_str(wf, 23) + '\x00'))) +
                 self._pack_record('WAVEFORM_TYPE_{}'.format(ii), 1, 'h') +
                 self._pack_record('WAVEFORM_LENGTH_{}'.format(ii),
                                   lenwfdat, 'l') +
@@ -1155,8 +1165,8 @@ class Tektronix_AWG5014(VisaInstrument):
                     ch = wfname[-1]
                     seq_record_str.write(
                         self._pack_record('SEQUENCE_WAVEFORM_NAME_CH_' + ch
-                                          + '_{}'.format(kk), wfname + '\x00',
-                                          '{}s'.format(len(wfname + '\x00')))
+                                          + '_{}'.format(kk), hash_str(wfname, 23) + '\x00',
+                                          '{}s'.format(len(hash_str(wfname, 23) + '\x00')))
                     )
             kk += 1
 

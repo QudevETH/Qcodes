@@ -6,6 +6,7 @@ import time
 import qcodes as qc
 from qcodes.instrument.visa import VisaInstrument
 from qcodes.utils import validators as vals
+from qcodes.instrument.parameter import ManualParameter
 
 log = logging.getLogger(__name__)
 
@@ -109,6 +110,9 @@ class SIM928(VisaInstrument):
             if CTCR & 1 != 0 and self.get_module_idn(i)['model'] == 'SIM928':
                 modules.append(i)
             CTCR >>= 1
+        if self.byte_to_bits(int(self.get_mainframe_status()))[4]:
+            raise Exception('SIM900 output buffer not emptied after '
+                            'find_modules.')
         return modules
 
     def ask_module(self, i, cmd):
@@ -130,13 +134,27 @@ class SIM928(VisaInstrument):
         time.sleep(100e-3)
         msg = 'GETN? {},128'.format(i)
         msg = self.ask(msg)
+        # log.warning('SIM900: {}'.format(msg))
+
         # first read consumes the terminator of the message from the submodule,
         # so we have a terminator from the message to us still in the input
-        # buffer.
-        self.visa_handle.read()
+        # buffer. Sometimes there are two terminators for some reason. So I
+        # will ask for '*OPC?' and read until we get the answer to clear the
+        # buffer
+        result = self.ask('*OPC?')
+        while result == '':
+            result = self.visa_handle.read()
+            if result != '0' and result != '1':
+                log.warning('Unexpected message in SIM900 buffer: '
+                            '{}'.format(result))
+
+        if self.byte_to_bits(int(self.get_mainframe_status()))[4]:
+            raise Exception('SIM900 output buffer not emptied after '
+                            'ask_module.')
 
         if msg[:2] != '#3':
             raise RuntimeError('Unexpected format of answer: {}'.format(msg))
+
         return msg[5:]
 
     def write_module(self, i, cmd):
