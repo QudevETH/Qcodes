@@ -43,7 +43,7 @@ class Agilent_E8527D(VisaInstrument):
                            set_cmd='POW:AMPL' + ' {:.4f}',
                            get_parser=float,
                            set_parser=float,
-                           vals=vals.Numbers(min_power, 16))
+                           vals=vals.Numbers(min_power, 25))
         self.add_parameter('status',
                            get_cmd=':OUTP?',
                            set_cmd='OUTP {}',
@@ -52,6 +52,12 @@ class Agilent_E8527D(VisaInstrument):
                            # .upper val for Enum or string
                            vals=vals.Enum('on', 'On', 'ON',
                                           'off', 'Off', 'OFF'))
+        self.add_parameter('pulsemod_state',
+                           label='Pulse Modulation',
+                           get_cmd=':OUTP:MOD?',
+                           set_cmd=':OUTP:MOD {}',
+                           get_parser=self.get_parser_on_off,
+                           set_parser=self.set_parser_on_off)
 
         self.connect_message()
 
@@ -71,6 +77,34 @@ class Agilent_E8527D(VisaInstrument):
         elif stat.startswith('1'):
             stat = 'On'
         return stat
+
+    def get_parser_on_off(self,value):
+        if value == '0':
+            ret = 'Off'
+        elif value == '1':
+            ret = 'On'
+        return ret
+
+    def set_parser_on_off(self,value):
+        if isinstance(value, bool):
+            if value:
+                ret = '1'
+            else:
+                ret = '0'
+        elif isinstance(value, str):
+            if value.upper() in ['0', 'OFF']:
+                ret = '0'
+            if value.upper() in ['1', 'ON']:
+                ret = '1'
+        elif value in [1, 0]:
+            if value == 1:
+                ret = '1'
+            elif value == 0:
+                ret = '0'
+        else:
+            raise ValueError('Unable to set parameter to {} '\
+                                'expected "ON"/1/True or "OFF"/0/False.'.format(value))
+        return ret
 
     def on(self):
         self.set('status', 'on')
