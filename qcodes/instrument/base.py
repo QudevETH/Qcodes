@@ -302,7 +302,7 @@ class InstrumentBase(Metadatable, DelegateAttributes):
         """
         self.parameters[param_name].set(value)
 
-    def get(self, param_name: str, default_value=None) -> Any:
+    def get(self, param_name: str) -> Any:
         """
         Shortcut for getting a parameter from its name.
 
@@ -312,10 +312,7 @@ class InstrumentBase(Metadatable, DelegateAttributes):
         Returns:
             The current value of the parameter.
         """
-        try:
-            return self.parameters[param_name].get()
-        except (AttributeError, KeyError):
-            return default_value
+        return self.parameters[param_name].get()
 
     def call(self, func_name: str, *args) -> Any:
         """
