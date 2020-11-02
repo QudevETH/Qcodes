@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+log = logging.getLogger(__name__)
 import h5py
 import os
 import json
@@ -31,7 +32,7 @@ class HDF5Format(Formatter):
             # Removes reference to closed file
             del data_set._h5_base_group
         else:
-            logging.warning(
+            log.warning(
                 'Cannot close file, data_set has no open hdf5 file')
 
     def _create_file(self, filepath):
@@ -378,7 +379,7 @@ class HDF5Format(Formatter):
                                     data_dict=list_item,
                                     entry_point=list_item_grp)
                         else:
-                            logging.warning(
+                            log.warning(
                                 'List of type "{}" for "{}":"{}" not '
                                 'supported, storing as string'.format(
                                     elt_type, key, item))
@@ -390,7 +391,7 @@ class HDF5Format(Formatter):
                     entry_point.attrs[key] = 'NoneType:__emptylist__'
 
             else:
-                logging.warning(
+                log.warning(
                     'Type "{}" for "{}":"{}" not supported, '
                     'storing as string'.format(type(item), key, item))
                 entry_point.attrs[key] = str(item)
