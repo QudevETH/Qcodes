@@ -206,9 +206,12 @@ class VisaInstrument(Instrument):
             cmd (str): The command to send to the instrument.
         """
         log.debug("Writing to instrument {}: {}".format(self.name, cmd))
-
-        nr_bytes_written, ret_code = self.visa_handle.write(cmd)
-        self.check_error(ret_code)
+        try:
+            nr_bytes_written, ret_code = self.visa_handle.write(cmd)
+            self.check_error(ret_code)
+        except:
+            nr_bytes_written = self.visa_handle.write(cmd)
+            return nr_bytes_written
 
     def ask_raw(self, cmd):
         """
